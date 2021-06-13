@@ -1,0 +1,321 @@
+---
+title: "NYPD Shootings 2006-2020"
+author: ""
+date: "6/13/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(viridis)
+library(lubridate)
+library(hrbrthemes)
+library(readxl)
+library(ggpubr)
+library(data.table)
+library(leaflet)
+library(sp)
+library(rgdal)
+library(KernSmooth)
+library(raster)
+library(httr)
+
+# GET NYPD SHOOTING DATA AND UNEMPLOYMENT DATA
+nypd_shooting <- read_csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+col_names <- c('LAUS_Code', 'State_Fips_Code', 'County_Fips_Code', 'County', 'Year', 'Blank', 'Labor_Force', 'Employed', 'Unemployed', 'Unemployment_Rate')
+
+GET("https://www.bls.gov/lau/laucnty20.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2020 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty19.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2019 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty18.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2018 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty17.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2017 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty16.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2016 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty15.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2015 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty14.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2014 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty13.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2013 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty12.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2012 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty11.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2011 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty10.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2010 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty09.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2009 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty08.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2008 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty07.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2007 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+GET("https://www.bls.gov/lau/laucnty06.xlsx", write_disk(tf <- tempfile(fileext = ".xlsx")))
+unemployment_2006 <- read_excel(tf, na='N.A.' ,col_names = col_names, skip=6) %>% subset(select = -c(Blank))
+
+unemployment <- rbind(unemployment_2006, unemployment_2007, unemployment_2008, unemployment_2009, unemployment_2010, unemployment_2011,
+                      unemployment_2012, unemployment_2013, unemployment_2014, unemployment_2015, unemployment_2016, unemployment_2017,
+                      unemployment_2018, unemployment_2019, unemployment_2020)
+```
+
+## Introduction
+
+In my research, I explored gun violence in New York City. They have had a large increase in shootings. 2020 was very hard on the economy due to the pandemic. This led to a large disruption in daily lives and increased unemployment rates among many other things.
+
+I discovered New York City’s shootings have been declining over the past 14 years until 2020 which has seen a significant 200% increase compared to 2019. I dug into a dataset called NYPD Shooting Incident Data (Historic) from data.gov on every shooting incident that occurred in New York City from 2006 to 2020 including all 5 boroughs: Bronx, Brooklyn, Manhattan, Queens, and Staten Island.
+
+*Install packages: tidyverse, ggplot2, viridis, lubridate, hrbrthemes, readxl, ggpubr, data.table, leaflet, sp, rgdal, KernSmooth, raster, httr.*
+
+The NYPD data was collected from *https://catalog.data.gov/dataset/nypd-shooting-incident-data-historic*.
+Unemployment data was collected from *https://www.bls.gov/lau/tables.htm*.
+
+For the NYPD dataset, it is best to drop NA's. Extrapolating or filling in with common data would create a bias.
+
+
+## Summary:
+
+``` {r import_and_clean, echo=TRUE}
+# SELECT ONLY COLUMNS NEEDED
+nypd_shooting = subset(nypd_shooting, select = -c(INCIDENT_KEY, 
+    STATISTICAL_MURDER_FLAG,JURISDICTION_CODE, LOCATION_DESC, X_COORD_CD, 
+    Y_COORD_CD, Lon_Lat))
+# CONVERT DATA TYPES
+nypd_shooting$OCCUR_DATE <- as.Date(nypd_shooting$OCCUR_DATE, "%m/%d/%Y")
+nypd_shooting$PRECINCT <- as.factor(nypd_shooting$PRECINCT)
+nypd_shooting$BORO <- as.factor(nypd_shooting$BORO)
+nypd_shooting$PERP_AGE_GROUP <- as.factor(nypd_shooting$PERP_AGE_GROUP)
+nypd_shooting$PERP_SEX <- as.factor(nypd_shooting$PERP_SEX)
+nypd_shooting$PERP_RACE <- as.factor(nypd_shooting$PERP_RACE)
+nypd_shooting$VIC_AGE_GROUP <- as.factor(nypd_shooting$VIC_AGE_GROUP)
+nypd_shooting$VIC_SEX <- as.factor(nypd_shooting$VIC_SEX)
+nypd_shooting$VIC_RACE <- as.factor(nypd_shooting$VIC_RACE)
+# CREATE YEAR COLUMN
+nypd_shooting$year <- format(nypd_shooting$OCCUR_DATE, format = "%Y")
+nypd_shooting$year <- as.factor(nypd_shooting$year)
+
+nypd_shooting_summary <- subset(nypd_shooting, select = c(year, BORO, PERP_AGE_GROUP, PERP_SEX, PERP_RACE, VIC_AGE_GROUP, VIC_SEX, VIC_RACE))
+summary(nypd_shooting_summary)
+```
+
+
+## Exploring the Data
+
+First I took a look at the most active age groups. Below shows 18-44 year olds are highly active in shootings with 25-44 year olds the most active. I also took a look at the number of shootings per Borough. There has been a downward trend since 2006 with a large spike in 2020. My first thought here is we are seeing affects from the 2020 pandemic, but what does this mean? What exactly is causing this increase?
+
+```{r age_groups, echo=TRUE}
+# PLOT 1: COMPARING VICTIM VS PERP BY AGE GROUPS
+nypd_by_age <- subset(nypd_shooting, select = c(VIC_AGE_GROUP, PERP_AGE_GROUP))
+# FILTERING OUT ANYTHING THAT IS NOT AN AGE GROUP
+nypd_by_age <- nypd_by_age[(nypd_by_age$PERP_AGE_GROUP == '65+' | nypd_by_age$PERP_AGE_GROUP == '45-64' | nypd_by_age$PERP_AGE_GROUP == '25-44' | nypd_by_age$PERP_AGE_GROUP == '18-24' | nypd_by_age$PERP_AGE_GROUP == '<18'), ]
+nypd_by_age <- nypd_by_age[(nypd_by_age$VIC_AGE_GROUP == '65+' | nypd_by_age$VIC_AGE_GROUP == '45-64' | nypd_by_age$VIC_AGE_GROUP == '25-44' | nypd_by_age$VIC_AGE_GROUP == '18-24' | nypd_by_age$VIC_AGE_GROUP == '<18'), ] 
+# DROP NA's
+nypd_by_age <- drop_na(nypd_by_age, PERP_AGE_GROUP)
+
+# GROUP BY VIC AGE AND PERP AGE
+nypd_by_age <- aggregate(nypd_by_age, by=list(nypd_by_age$VIC_AGE_GROUP, nypd_by_age$PERP_AGE_GROUP), FUN=length)
+nypd_by_age <- subset(nypd_by_age, select = -c(VIC_AGE_GROUP))
+nypd_by_age <- setNames(nypd_by_age, c("VIC_AGE_GROUP", "PERP_AGE_GROUP", "count"))
+
+# PLOT IN HEAT MAP
+ggplot(nypd_by_age, aes(x=VIC_AGE_GROUP, y=PERP_AGE_GROUP, fill=count)) +
+  geom_tile() + 
+  scale_fill_viridis(discrete=FALSE, name="Num of Shootings") +
+  ggtitle("Shootings by Age in New York City (Perp vs Victim)") +
+  xlab("Victim Age Groups") +
+  ylab("Perpetrator Age Groups")
+```
+
+```{r, echo = TRUE}
+# PLOT 2: COMPARING LOCATION AND YEARS
+nypd_by_loc_year <- subset(nypd_shooting, select = c(BORO, year))
+# GROUPING BY BORO AND YEAR
+nypd_by_loc_year <- aggregate(nypd_by_loc_year, by=list(nypd_by_loc_year$BORO, nypd_by_loc_year$year), FUN=length)
+nypd_by_loc_year <- subset(nypd_by_loc_year, select = -c(year))
+nypd_by_loc_year <- setNames(nypd_by_loc_year, c("BORO", "year", "count"))
+
+# PLOT IN BAR CHARTS SEPARATELY
+ggplot(nypd_by_loc_year, aes(fill=year, y=count, x=year)) + 
+  geom_bar(position="dodge", stat="identity") +
+  scale_fill_viridis(discrete = TRUE, name="Year") +
+  ggtitle("Shootings by Year in New York City") +
+  facet_wrap(~BORO) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  ylab("Number of Shootings")
+```
+
+
+Diving in further I decided to gather unemployment data. With the lockdowns, the economy took a big hit. I gathered data from the U.S. Bureau of Labor Statistics. The dataset was listed by county so I converted this data to show Borough’s to compare with shootings. This was done through the “The Official Website of the City of New York” (*https://portal.311.nyc.gov/article/?kanumber=KA-02877*).
+
+This shows Unemployment Rates in New York City from 2006 to 2020. Taking a look at these charts you can see a very similar 2020 spike after a downward trend since 2009 in all Borough’s similar to the shootings. This would highly affect lower income communities which we will explore shortly.
+
+```{r unemployment_plot}
+nyc_unemployment <- filter(unemployment, County %in% c('Bronx County, NY', 'Kings County, NY', 'New York County, NY', 'Queens County, NY', 'Richmond County, NY'))
+nyc_unemployment['Boro'] <- ifelse(nyc_unemployment$County == "Bronx County, NY", "Bronx", 
+                                   ifelse(nyc_unemployment$County == "Kings County, NY", "Brooklyn", 
+                                          ifelse(nyc_unemployment$County == "New York County, NY", "Manhatten", 
+                                                 ifelse(nyc_unemployment$County == "Queens County, NY", "Queens", 
+                                                        ifelse(nyc_unemployment$County == "Richmond County, NY", "Staten Island", '')))))
+
+
+# PLOT 2: COMPARING LOCATION AND YEARS
+nyc_unemployment_by_year <- subset(nyc_unemployment, select = c(Boro, Year, Unemployment_Rate))
+
+# PLOT IN BAR CHARTS SEPARATELY
+ggplot(nyc_unemployment_by_year, aes(fill=Year, y=Unemployment_Rate, x=Year)) + 
+  geom_bar(position="dodge", stat="identity") +
+  scale_fill_viridis(discrete = TRUE, name="Year") +
+  ggtitle("Unemployment Rates in New York City") +
+  facet_wrap(~Boro) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  ylab("Unemployment Rate")
+
+```
+
+
+
+### Correlations
+
+Taking a look at the correlation between shootings and unemployment, we can in fact see there is a moderately correlated relationship with a 0.52 correlation coefficient in Bronx, 0.57 in Brooklyn, and 0.58 in Queens which had the highest shootings. Manhattan and Staten Island have a very low correlation which means shootings likely have a different cause. Unemployment is definitely at least one factor in increased shootings.
+
+``` {r}
+
+# CORRELATION BETWEEN SHOOTINGS AND UNEMPLOYMENT
+# BRONX
+bronx_unemployment <- nyc_unemployment_by_year[nyc_unemployment_by_year$Boro == 'Bronx',]
+bronx_shootings <- nypd_by_loc_year[nypd_by_loc_year$BORO == 'BRONX',]
+bronx <- cbind(bronx_shootings, bronx_unemployment)
+ggscatter(bronx, x = "Unemployment_Rate", y = "count", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Unemployment Rate", ylab = "Count of Shootings") +
+          ggtitle("BRONX")
+
+# BROOKLYN
+brooklyn_unemployment <- nyc_unemployment_by_year[nyc_unemployment_by_year$Boro == 'Brooklyn',]
+brooklyn_shootings <- nypd_by_loc_year[nypd_by_loc_year$BORO == 'BROOKLYN',]
+brooklyn <- cbind(brooklyn_shootings, brooklyn_unemployment)
+ggscatter(brooklyn, x = "Unemployment_Rate", y = "count", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Unemployment Rate", ylab = "Count of Shootings") +
+          ggtitle("BROOKLYN")
+
+# MANHATTAN
+manhattan_unemployment <- nyc_unemployment_by_year[nyc_unemployment_by_year$Boro == 'Manhatten',]
+manhattan_shootings <- nypd_by_loc_year[nypd_by_loc_year$BORO == 'MANHATTAN',]
+manhattan <- cbind(manhattan_shootings, manhattan_unemployment)
+ggscatter(manhattan, x = "Unemployment_Rate", y = "count", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Unemployment Rate", ylab = "Count of Shootings") +
+          ggtitle("MANHATTAN")
+
+# QUEENS
+queens_unemployment <- nyc_unemployment_by_year[nyc_unemployment_by_year$Boro == 'Queens',]
+queens_shootings <- nypd_by_loc_year[nypd_by_loc_year$BORO == 'QUEENS',]
+queens <- cbind(queens_shootings, queens_unemployment)
+ggscatter(queens, x = "Unemployment_Rate", y = "count", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Unemployment Rate", ylab = "Count of Shootings") +
+          ggtitle("QUEENS")
+
+# STATEN ISLAND
+staten_island_unemployment <- nyc_unemployment_by_year[nyc_unemployment_by_year$Boro == 'Staten Island',]
+staten_island_shootings <- nypd_by_loc_year[nypd_by_loc_year$BORO == 'STATEN ISLAND',]
+staten_island <- cbind(staten_island_shootings, staten_island_unemployment)
+ggscatter(staten_island, x = "Unemployment_Rate", y = "count", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Unemployment Rate", ylab = "Count of Shootings") +
+          ggtitle("STATEN ISLAND")
+
+```
+
+
+### Density Maps of Shootings
+
+Taking a look at these density maps we can get a better idea of the areas where there was an increase in activity between 2019 and 2020. The smaller areas on the 2020 map show the same density as 2019 but in a smaller area meaning more shootings within that area. There are also 2 main clusters. A large one over Brooklyn, unsurprisingly as we have seen, and another large one over the border between Manhattan and Bronx. Staten Island is mostly clear which is also to be expected.
+
+```{r lat lon plot}
+
+df_2019 <- filter(nypd_shooting, year == 2019)
+df_2019 <- data.table(df_2019)
+## Create kernel density output
+kde <- bkde2D(df_2019[ , list(Longitude, Latitude)],
+              bandwidth=c(.0045, .0068), gridsize = c(2000,2000))
+# Create Raster from Kernel Density output
+KernelDensityRaster <- raster(list(x=kde$x1 ,y=kde$x2 ,z = kde$fhat))
+
+#create pal function for coloring the raster
+palRaster <- colorBin("Spectral", bins = 7, domain = KernelDensityRaster@data@values, na.color = "transparent")
+
+#set low density cells as NA so we can make them transparent with the colorNumeric function
+KernelDensityRaster@data@values[which(KernelDensityRaster@data@values < 1)] <- NA
+ 
+## Leaflet map with raster
+leaflet() %>% addTiles() %>% 
+  addRasterImage(KernelDensityRaster, 
+                 colors = palRaster, 
+                 opacity = .6) %>%
+  addLegend(pal = palRaster, 
+            values = KernelDensityRaster@data@values, 
+            title = "Density of Shootings in 2019")
+
+
+df_2020 <- filter(nypd_shooting, year == 2020)
+df_2020 <- data.table(df_2020)
+## Create kernel density output
+kde <- bkde2D(df_2020[ , list(Longitude, Latitude)],
+              bandwidth=c(.0022, .0068), gridsize = c(2000,2000))
+# Create Raster from Kernel Density output
+KernelDensityRaster <- raster(list(x=kde$x1 ,y=kde$x2 ,z = kde$fhat))
+
+#create pal function for coloring the raster
+palRaster <- colorBin("Spectral", bins = 7, domain = KernelDensityRaster@data@values, na.color = "transparent")
+
+#set low density cells as NA so we can make them transparent with the colorNumeric function
+KernelDensityRaster@data@values[which(KernelDensityRaster@data@values < 1)] <- NA
+ 
+## Leaflet map with raster
+leaflet() %>% addTiles() %>% 
+  addRasterImage(KernelDensityRaster, 
+                 colors = palRaster, 
+                 opacity = .6) %>%
+  addLegend(pal = palRaster, 
+            values = KernelDensityRaster@data@values, 
+            title = "Density of Shootings in 2020")
+```
+
+
+
+### Median Household Income
+Now let’s take a look at the median household incomes for New York City to find those low income communities. This image was collected from Business Insider and was created with 2009-2013 data. However, the difference in these neighborhoods between then and now will be relatively the same for this analysis to find the lower income communities. Comparing our previous density map to this household income map, we can in fact see the most shootings are occurring in the lower income areas. These areas would have been hit the hardest by the pandemic with the large increase in unemployment rates previously shown.  Staten Island for example has very few shootings and has mostly high income households.
+
+```{r, echo=FALSE}
+# Define variable containing url
+url <- "https://i.insider.com/54872d4beab8ead1389000d8"
+```
+![](`r url`)
+
+
+
+# Conclusion
+
+From my analysis, the pandemic has definitely had an impact. Increased unemployment rates and low household incomes cannot be declared the cause of the increased shootings, however, there is definitely a relationship there to explore further. Unemployment causes a lot of stress on low income communities which we have verified are where most of the shootings are taking place. More resources are needed for these low income communities to overcome this unfortunate economic hit.
+
+
+
+### Session Info
+```{r, echo=TRUE}
+print(sessionInfo())
+```
